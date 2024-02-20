@@ -46,7 +46,7 @@
 
 			let visDataset = new vis.DataSet(dataset)
 
-			var timeline = new vis.Timeline(document.getElementById('visualization'), visDataset, {})
+			timeline = new vis.Timeline(document.getElementById('visualization'), visDataset, { configure: true })
 		});
 	</script>
 </head>
