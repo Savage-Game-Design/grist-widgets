@@ -32,6 +32,7 @@
 			}
 		]});
 		grist.onRecords(function (records, mappings) {
+			console.log("Test if this is called")
 			console.log(records)
 			const mappedRecords = records.map(grist.mapColumnNames)
 
