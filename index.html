@@ -14,7 +14,9 @@
 			border: 1px solid lightgray;
 		}
 	</style>
-	<script>
+	<script type="text/javascript">
+		var timeline = null
+
 		grist.ready({ columns: [
 			{
 				name: "StartDate",
@@ -42,7 +44,9 @@
 				start: record.StartDate,
 			}))
 
-			var visDataset = new vis.DataSet(dataset)
+			let visDataset = new vis.DataSet(dataset)
+
+			var timeline = new vis.Timeline(document.getElementById('visualization'), visDataset, {})
 		});
 	</script>
 </head>
@@ -54,6 +58,7 @@
 		var container = document.getElementById('visualization');
 
 		// Create a DataSet (allows two way data-binding)
+		/*
 		var items = new vis.DataSet([
 			{ id: 1, content: 'item 1', start: '2014-04-20' },
 			{ id: 2, content: 'item 2', start: '2014-04-14' },
@@ -68,6 +73,7 @@
 
 		// Create a Timeline
 		var timeline = new vis.Timeline(container, items, options);
+		*/
 	</script>
 	</body>
 
