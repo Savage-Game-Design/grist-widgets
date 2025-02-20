@@ -1,0 +1,199 @@
+<!doctype html>
+<html>
+<head>
+	<title>Skill tree viewer</title>
+	<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+	<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+	<style>
+		p {
+			margin: 5px;
+		}
+
+		.skill-tiers {
+			display: flex;
+			flex-direction: column-reverse;
+			gap: 40px;
+		}
+		.skill-row {
+			display: flex;
+			width: min-content;
+			margin-left: auto;
+			margin-right: auto;
+			gap: 40px;
+			justify-items: center;
+			align-items: center;
+		}
+
+		.skill {
+			position: relative;
+			border: solid 1px black;
+			padding: 10px;
+			width: 200px;
+			text-align: center;
+		}
+
+		.skill .type {
+			position: absolute;
+			top: 0;
+			left: 0;
+			font-weight: bolder;
+			font-size: 1.2em;
+			padding: 3px;
+		}
+
+		.skill .cost {
+			font-size: 1.3em;
+		}
+
+		.skill .title {
+			font-weight: bolder;
+			font-size: 1.5em;
+		}
+	</style>
+</head>
+<template id="skill">
+	<div class="skill" :style="style">
+		<div class="type">{{ skill.type }}</div>
+		<p class="title">{{ skill.title || "" }}</p>
+		<p>{{ skill.description }}</p>
+		<p class="cost">{{ skill.cost }} SP</p>
+	</div>
+</template>
+<body>
+	<div id="app">
+		<div class="skill-tiers">
+			<div class="skill-row" v-for="tier in skillsByTier">
+				<Skill :skill="skill" v-for="skill in tier"></Skill>
+			</div>
+			Fish
+		</div>
+	</div>
+	<script type="text/javascript">
+		grist.ready({ columns: [
+			{
+				name: "title",
+				title: "Skill title",
+				optional: false,
+				type: "Text",
+			},
+			{
+				name: "description",
+				title: "Skill description",
+				optional: false,
+				type: "Text",
+			},
+			{
+				name: "cost",
+				title: "Skill cost",
+				optional: false,
+				type: "Numeric",
+			},
+			{
+				name: "tier",
+				title: "Skill tier",
+				optional: false,
+				type: "Numeric",
+			},
+			{
+				name: "type",
+				title: "Skill type",
+				optional: false,
+				type: "Text",
+			}
+		]});
+
+
+		const testSkills = [
+			{
+				title: "Skill One",
+				description: "Does a thing",
+				cost: 1,
+				tier: 0,
+				type: "A"
+			},
+			{
+				title: "Skill Two",
+				description: "Does a thing",
+				cost: 1,
+				tier: 1
+			},
+			{
+				title: "Skill Three",
+				description: "Does a thing",
+				cost: 1,
+				tier: 1
+			},
+			{
+				title: "Skill Four",
+				description: "Does a thing",
+				cost: 1,
+				tier: 2
+			},
+			{
+				title: "Skill Five",
+				description: "Does a whole lot of thing, some of which may be important, some of which may be not. What matters is, this text is long.",
+				cost: 1,
+				tier: 3
+			},
+		]
+
+		const { createApp, ref, computed } = Vue
+
+		const Skill = {
+			props: ['skill'],
+			setup(props) {
+				const style = ref({ gridRow: props.skill.tier  })
+
+				return {
+					style
+				}
+			},
+			template: document.querySelector('#skill').getHTML()
+		}
+
+		const App = createApp({
+			components: {
+				Skill,
+			},
+			setup() {
+				grist.onRecords(function (records, mappings) {
+					console.log("Test if this is called 2")
+					console.log(records)
+					const mappedRecords = records.map(grist.mapColumnNames)
+
+					console.log(mappedRecords);
+				});
+
+				const skills = ref(testSkills);
+
+				const skillsByTier = computed(() => {
+					const tiers = [];
+					const highestTier = Math.max(...skills.value.map(skill => skill.tier))
+					for (let i = 0; i <= highestTier; i++) {
+						tiers[i] = [];
+					}
+					for (let skill of skills.value) {
+						tiers[skill.tier].push(skill)
+					}
+					return tiers
+				})
+
+				return {
+					skills,
+					skillsByTier,
+				}
+			}
+		})
+		
+		App.mount('#app')
+
+		grist.onRecords(function (records, mappings) {
+			console.log("Test if this is called")
+			console.log(records)
+			const mappedRecords = records.map(grist.mapColumnNames)
+
+			console.log(mappedRecords);
+		});
+	</script>
+</body>
+</html>
