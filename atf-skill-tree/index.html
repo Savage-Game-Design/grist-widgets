@@ -9,6 +9,16 @@
 			margin: 5px;
 		}
 
+		.tree-selector {
+			position: fixed;
+			top: 10px;
+			left: 50%;
+			transform: translate(-50%);
+			min-width: 200px;
+			text-align: center;
+			font-size: 1.5em;
+		}
+
 		.skill-tiers {
 			display: flex;
 			flex-direction: column-reverse;
@@ -61,6 +71,9 @@
 </template>
 <body>
 	<div id="app">
+		<select class="tree-selector" @change="currentTree = $event.target.value">
+			<option :value="tree" v-for="tree in trees">{{ tree }}</option>
+		</select>
 		<div class="skill-tiers">
 			<div class="skill-row" v-for="tier in skillsByTier">
 				<Skill :skill="skill" v-for="skill in tier"></Skill>
@@ -86,13 +99,13 @@
 				name: "cost",
 				title: "Skill cost",
 				optional: false,
-				type: "Numeric",
+				type: "Integer",
 			},
 			{
 				name: "tier",
 				title: "Skill tier",
 				optional: false,
-				type: "Numeric",
+				type: "Integer",
 			},
 			{
 				name: "type",
@@ -109,31 +122,58 @@
 				description: "Does a thing",
 				cost: 1,
 				tier: 0,
-				type: "A"
+				type: "A",
+				tree: "Combat",
 			},
 			{
 				title: "Skill Two",
 				description: "Does a thing",
 				cost: 1,
-				tier: 1
+				tier: 1,
+				tree: "Combat",
 			},
 			{
 				title: "Skill Three",
 				description: "Does a thing",
 				cost: 1,
-				tier: 1
+				tier: 1,
+				tree: "Combat",
 			},
 			{
 				title: "Skill Four",
 				description: "Does a thing",
 				cost: 1,
-				tier: 2
+				tier: 2,
+				tree: "Combat",
 			},
 			{
 				title: "Skill Five",
 				description: "Does a whole lot of thing, some of which may be important, some of which may be not. What matters is, this text is long.",
 				cost: 1,
-				tier: 3
+				tier: 3,
+				tree: "Combat",
+			},
+			{
+				title: "Skill One",
+				description: "Does a thing",
+				cost: 1,
+				tier: 0,
+				type: "A",
+				tree: "Pointman",
+			},
+			{
+				title: "Skill Two",
+				description: "Does a thing",
+				cost: 1,
+				tier: 1,
+				tree: "Pointman",
+			},
+			{
+				title: "Skill Three",
+				description: "Does a thing",
+				cost: 1,
+				tier: 1,
+				tree: "Pointman",
 			},
 		]
 
@@ -156,44 +196,54 @@
 				Skill,
 			},
 			setup() {
+				const urlParams = new URLSearchParams(window.location.search);
+				const inTestMode = urlParams.get('test');
+
+				const allSkills = ref(inTestMode ? testSkills : []);
+
 				grist.onRecords(function (records, mappings) {
-					console.log("Test if this is called 2")
+					console.log("Received records from Grist")
 					console.log(records)
 					const mappedRecords = records.map(grist.mapColumnNames)
 
-					console.log(mappedRecords);
+					allSkills.value = mappedRecords;
 				});
 
-				const skills = ref(testSkills);
+
+				const trees = computed(() => {
+					const trees = new Set();
+					for (let skill of allSkills.value) {
+						trees.add(skill.tree || "No tree")
+					}
+					return Array.from(trees)
+				})
+
+				const currentTree = ref(trees.value[0])
+				const skillsInCurrentTree = computed(() => {
+					return allSkills.value.filter((skill) => skill.tree === currentTree.value)
+				})
 
 				const skillsByTier = computed(() => {
 					const tiers = [];
-					const highestTier = Math.max(...skills.value.map(skill => skill.tier))
+					const highestTier = Math.max(...skillsInCurrentTree.value.map(skill => skill.tier))
 					for (let i = 0; i <= highestTier; i++) {
 						tiers[i] = [];
 					}
-					for (let skill of skills.value) {
+					for (let skill of skillsInCurrentTree.value) {
 						tiers[skill.tier].push(skill)
 					}
 					return tiers
 				})
 
 				return {
-					skills,
+					currentTree,
 					skillsByTier,
+					trees,
 				}
 			}
 		})
 		
 		App.mount('#app')
-
-		grist.onRecords(function (records, mappings) {
-			console.log("Test if this is called")
-			console.log(records)
-			const mappedRecords = records.map(grist.mapColumnNames)
-
-			console.log(mappedRecords);
-		});
 	</script>
 </body>
 </html>
