@@ -209,14 +209,16 @@
 
 				grist.onRecords(function (records, mappings) {
 					console.log("Received records from Grist")
-					console.log(records)
 					const mappedRecords = records.map(grist.mapColumnNames)
+					console.log(mappedRecords)
 
 					allSkills.value = mappedRecords;
 				});
 
 
 				const trees = computed(() => {
+					console.log("Evaluating trees")
+					console.log(allSkills.value)
 					const trees = new Set();
 					for (let skill of allSkills.value) {
 						trees.add(skill.tree || "No tree")
@@ -224,12 +226,20 @@
 					return Array.from(trees)
 				})
 
+				console.log(trees)
+				console.log(trees.value)
+
 				const currentTree = ref(trees.value[0])
 				const skillsInCurrentTree = computed(() => {
+					console.log("Evaluating skills")
+					console.log(currentTree)
+					console.log(allSkills.value)
 					return allSkills.value.filter((skill) => skill.tree === currentTree.value)
 				})
 
 				const skillsByTier = computed(() => {
+					console.log("Evaluating tiers")
+					console.log(skillsInCurrentTree.value)
 					const tiers = [];
 					const highestTier = Math.max(...skillsInCurrentTree.value.map(skill => skill.tier))
 					for (let i = 0; i <= highestTier; i++) {
