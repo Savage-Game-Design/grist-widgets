@@ -183,7 +183,7 @@
 			},
 		]
 
-		const { createApp, ref, computed } = Vue
+		const { createApp, ref, computed, watch } = Vue
 
 		const Skill = {
 			props: ['skill'],
@@ -226,10 +226,14 @@
 					return Array.from(trees)
 				})
 
-				console.log(trees)
-				console.log(trees.value)
-
 				const currentTree = ref(trees.value[0])
+
+				watch(trees, (newTrees) => {
+					if (!newTrees.includes(currentTree.value)) {
+						currentTree.value = newTrees[0]
+					}
+				})
+
 				const skillsInCurrentTree = computed(() => {
 					console.log("Evaluating skills")
 					console.log(currentTree)
