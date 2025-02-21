@@ -30,16 +30,27 @@
 			margin-left: auto;
 			margin-right: auto;
 			gap: 40px;
-			justify-items: center;
-			align-items: center;
+			align-items: stretch;
 		}
 
 		.skill {
 			position: relative;
 			border: solid 1px black;
 			padding: 10px;
-			width: 200px;
+			width: 175px;
 			text-align: center;
+		}
+
+		.skill.active {
+			background-color: lightgreen;
+		}
+
+		.skill.ultimate {
+			background-color: lightpink;
+		}
+
+		.skill.passive {
+			background-color: lightgrey;
 		}
 
 		.skill .type {
@@ -51,8 +62,19 @@
 			padding: 3px;
 		}
 
+		.skill .items {
+			display: flex;
+			flex-direction: column;
+			height: 100%;
+		}
+
+		.skill .description {
+			flex-grow: 1;
+		}
+
 		.skill .cost {
 			font-size: 1.3em;
+			justify-self: end;
 		}
 
 		.skill .title {
@@ -62,11 +84,13 @@
 	</style>
 </head>
 <template id="skill">
-	<div class="skill" :style="style">
+	<div :class="classes" :style="style">
 		<div class="type">{{ skill.type }}</div>
-		<p class="title">{{ skill.title || "" }}</p>
-		<p>{{ skill.description }}</p>
-		<p class="cost">{{ skill.cost }} SP</p>
+		<div class="items">
+			<p class="title">{{ skill.title || "" }}</p>
+			<p class="description">{{ skill.description }}</p>
+			<p class="cost">{{ skill.cost }} SP</p>
+		</div>
 	</div>
 </template>
 <body>
@@ -136,6 +160,7 @@
 				description: "Does a thing",
 				cost: 1,
 				tier: 1,
+				type: "P",
 				tree: "Combat",
 			},
 			{
@@ -143,6 +168,7 @@
 				description: "Does a thing",
 				cost: 1,
 				tier: 1,
+				type: "P",
 				tree: "Combat",
 			},
 			{
@@ -155,8 +181,17 @@
 			{
 				title: "Skill Five",
 				description: "Does a whole lot of thing, some of which may be important, some of which may be not. What matters is, this text is long.",
-				cost: 1,
+				cost: 2,
 				tier: 3,
+				type: "U",
+				tree: "Combat",
+			},
+			{
+				title: "Skill Six",
+				description: "Does something",
+				cost: 2,
+				tier: 3,
+				type: "U",
 				tree: "Combat",
 			},
 			{
@@ -164,7 +199,7 @@
 				description: "Does a thing",
 				cost: 1,
 				tier: 0,
-				type: "A",
+				type: "P",
 				tree: "Pointman",
 			},
 			{
@@ -172,6 +207,7 @@
 				description: "Does a thing",
 				cost: 1,
 				tier: 1,
+				type: "A",
 				tree: "Pointman",
 			},
 			{
@@ -179,6 +215,7 @@
 				description: "Does a thing",
 				cost: 1,
 				tier: 1,
+				type: "U",
 				tree: "Pointman",
 			},
 		]
@@ -188,10 +225,29 @@
 		const Skill = {
 			props: ['skill'],
 			setup(props) {
-				const style = ref({ gridRow: props.skill.tier  })
+				const style = ref({ 
+					gridRow: props.skill.tier  
+				})
+
+				const skillTypeClassMap = {
+					P: 'passive',
+					A: 'active',
+					U: 'ultimate',
+				}
+
+				const classes = computed(() => {
+					const classValues = ['skill']
+
+					if (props.skill.type) {
+						classValues.push(skillTypeClassMap[props.skill.type])
+					}
+
+					return classValues
+				})
 
 				return {
-					style
+					style,
+					classes
 				}
 			},
 			template: document.querySelector('#skill').getHTML()
