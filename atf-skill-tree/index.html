@@ -36,7 +36,7 @@
 
 		.skill-tiers {
 			display: flex;
-			flex-direction: column-reverse;
+			flex-direction: column;
 			gap: 40px;
 		}
 		.skill-row {
@@ -46,6 +46,10 @@
 			margin-right: auto;
 			gap: 40px;
 			align-items: stretch;
+		}
+
+		.empty-skill {
+			width: 197px;
 		}
 
 		.skill {
@@ -115,8 +119,11 @@
 		</select>
 		<h1 class="current-tree">{{ currentTree }}</h1>
 		<div class="skill-tiers">
-			<div class="skill-row" v-for="tier in skillsByTier">
-				<Skill :skill="skill" v-for="skill in tier"></Skill>
+			<div class="skill-row" v-for="tier in skillRows">
+				<template v-for="skill in tier">
+					<Skill v-if="skill" :skill="skill"></Skill>
+					<div v-else class="empty-skill"></div>
+				</template>
 			</div>
 		</div>
 	</div>
@@ -158,11 +165,24 @@
 				optional: true,
 				type: "Text",
 			},
+			{
+				name: "horizontalPriority",
+				title: "Horizontal priority",
+				optional: true,
+				type: "Numeric",
+			},
+			{
+				name: "dependencies",
+				title: "Dependencies",
+				optional: true,
+				type: "Reference"
+			}	
 		]});
 
 
 		const testSkills = [
 			{
+				id: 1,
 				title: "Skill One",
 				description: "Does a thing",
 				cost: 1,
@@ -171,6 +191,7 @@
 				tree: "Combat",
 			},
 			{
+				id: 2,
 				title: "Skill Two",
 				description: "Does a thing",
 				cost: 1,
@@ -179,14 +200,18 @@
 				tree: "Combat",
 			},
 			{
+				id: 3,
 				title: "Skill Three",
 				description: "Does a thing",
 				cost: 1,
 				tier: 1,
 				type: "P",
 				tree: "Combat",
+				horizontalPriority: 1,
+				dependencies: [1],
 			},
 			{
+				id: 4,
 				title: "Skill Four",
 				description: "Does a thing",
 				cost: 1,
@@ -194,6 +219,7 @@
 				tree: "Combat",
 			},
 			{
+				id: 5,
 				title: "Skill Five",
 				description: "Does a whole lot of thing, some of which may be important, some of which may be not. What matters is, this text is long.",
 				cost: 2,
@@ -202,6 +228,7 @@
 				tree: "Combat",
 			},
 			{
+				id: 6,
 				title: "Skill Six",
 				description: "Does something",
 				cost: 2,
@@ -210,6 +237,7 @@
 				tree: "Combat",
 			},
 			{
+				id: 7,
 				title: "Skill One",
 				description: "Does a thing",
 				cost: 1,
@@ -218,6 +246,7 @@
 				tree: "Pointman",
 			},
 			{
+				id: 8,
 				title: "Skill Two",
 				description: "Does a thing",
 				cost: 1,
@@ -226,6 +255,7 @@
 				tree: "Pointman",
 			},
 			{
+				id: 9,
 				title: "Skill Three",
 				description: "Does a thing",
 				cost: 1,
@@ -268,6 +298,24 @@
 			template: document.querySelector('#skill').getHTML()
 		}
 
+		const sortByHorizontalPriority = (skillA, skillB) => {
+			const a = skillA.horizontalPriority;
+			const b = skillB.horizontalPriority;
+			if (a === b) {
+				return 0;
+			}
+			if (a === undefined) {
+				return 1;
+			}
+			if (b === undefined) {
+				return -1;
+			}
+			if (a < b) {
+				return 1;
+			}
+			return -1;
+		}
+
 		const App = createApp({
 			components: {
 				Skill,
@@ -276,16 +324,28 @@
 				const urlParams = new URLSearchParams(window.location.search);
 				const inTestMode = urlParams.get('test');
 
-				const allSkills = ref(inTestMode ? testSkills : []);
+				const rawSkills = ref(inTestMode ? testSkills : []);
 
 				grist.onRecords(function (records, mappings) {
 					console.log("Received records from Grist")
 					const mappedRecords = records.map(grist.mapColumnNames)
 					console.log(mappedRecords)
 
-					allSkills.value = mappedRecords;
+					rawSkills.value = mappedRecords;
 				});
 
+				const allSkills = computed(() => {
+					const normalizedSkills = rawSkills.value.map(skill => ({
+						...skill,
+						dependencies: skill.dependencies ?? [],
+					}));
+
+					for (const skill of normalizedSkills) {
+						skill.dependencies = skill.dependencies.map(skillId => normalizedSkills.find(skill => skill.id === skillId))
+					}
+
+					return normalizedSkills
+				})
 
 				const trees = computed(() => {
 					console.log("Evaluating trees")
@@ -312,12 +372,13 @@
 					return allSkills.value.filter((skill) => skill.tree === currentTree.value)
 				})
 
+				const highestTier = computed(() => Math.max(...skillsInCurrentTree.value.map(skill => skill.tier)))
+
 				const skillsByTier = computed(() => {
 					console.log("Evaluating tiers")
 					console.log(skillsInCurrentTree.value)
 					const tiers = [];
-					const highestTier = Math.max(...skillsInCurrentTree.value.map(skill => skill.tier))
-					for (let i = 0; i <= highestTier; i++) {
+					for (let i = 0; i <= highestTier.value; i++) {
 						tiers[i] = [];
 					}
 					for (let skill of skillsInCurrentTree.value) {
@@ -326,9 +387,146 @@
 					return tiers
 				})
 
+				const skillsByTierHighestFirst = computed(() => skillsByTier.value.slice().reverse())
+
+				function getSkillBlock(skill, offsets = { c: 0, r: 0 }) {
+					const childBlocks = [];
+					let columnOffset = offsets.c;
+					for (const dep of (skill.dependencies ?? [])) {
+						const childBlock = getSkillBlock(dep, { c: columnOffset, r: offsets.r +	1 })
+						childBlocks.push(childBlock);
+						columnOffset += childBlock.width;
+					}
+					const childrenWidth = childBlocks.reduce((total, block) => total + block.width, 0);
+					const childrenHeight = Math.max(childBlocks.map(block => block.height));
+					return {
+						height: 1 + childrenHeight,
+						width: Math.max(childrenWidth, 1),
+						startRow: highestTier.value - skill.tier,
+						endRow: (highestTier.value - skill.tier) + childrenHeight,
+						rootSkill: skill,
+						skills: childBlocks.reduce((acc, block) => acc.concat(block.skills), [skill]),
+						skillsWithOffsets: childBlocks.reduce((acc, block) => acc.concat(block.skillsWithOffsets), [{ skill, offsets }]),
+					}
+				}
+
+				// Assuming a top-left coord system for both, check if the block fits in a gap.
+				const gapHasSpace = (gap, block) => {
+					return block.startRow >= gap.r &&
+						   block.endRow < gap.r + gap.h &&
+						   block.width <= gap.w
+				};
+
+				const consumeGapSpace = (gap, block) => {
+					const newGaps = [];
+					if (block.height < gap.h) {
+						// Bottom space
+						// Needs to be before the top space, so it gets prioritised in the search.
+						newGaps.push({
+							r: gap.r + block.height,
+							c: gap.c,
+							w: block.width,
+							h: gap.h - block.height,
+						})
+					}
+					if (block.width < gap.w) {
+						// Right hand space
+						newGaps.push({
+							r: gap.r,
+							c: gap.c + block.width,
+							w: gap.w - block.width,
+							h: gap.h,
+						})
+					}
+					// Top space doesn't matter - as we'll already have processed the higher tier.
+					// Left space can't exist, it's a top-left coord system, flowing right and down.
+					return {
+						allocatedBlock: {
+							r: block.startRow,
+							c: gap.c,
+							block,
+						},
+						newGaps,
+					}
+				};
+
+				function addAllocatedBlockToRows(aBlock, rows) {
+					for (const offsetSkill of aBlock.block.skillsWithOffsets) {
+						const rowIndex = aBlock.r + offsetSkill.offsets.r
+						const row = rows[rowIndex] ?? [];
+						row[aBlock.c + offsetSkill.offsets.c] = offsetSkill.skill
+						rows[rowIndex] = row
+					}
+					return rows
+				}
+
+				const skillRows = computed(() => {
+					// Gaps for this tier of skills
+					// Gaps should *always* be sorted by column, to allow for reconciliation.
+					// This occurs naturally when a gap split occurs - as long as it returns the bottom fragment, then the right fragment.
+					let gaps = [{
+						r: 0,
+						c: 0,
+						h: 9999,
+						w: 9999,
+					}];
+
+					const blocks = [];
+					const allocatedBlocks = [];
+					const dependentSkillIds = [];
+
+
+					for (const skill of skillsInCurrentTree.value) {
+						for (const dependentSkill of skill.dependencies) {
+							dependentSkillIds.push(dependentSkill.id)
+						}
+					}
+					
+					for (const skill of skillsInCurrentTree.value) {
+						if (dependentSkillIds.includes(skill.id)) { continue }
+						const block = getSkillBlock(skill);
+						blocks.push(block);
+					}
+
+					blocks.sort((a, b) => a.startRow - b.startRow)
+					console.log(blocks)
+
+					for (const block of blocks) {
+						// TODO - Reconcile
+						console.log(`Processing block - ${block.rootSkill.title}`);
+						console.log(block)
+						console.log(JSON.stringify(gaps))
+						const gapIndex = gaps.findIndex(gap => gapHasSpace(gap, block));
+						if (gapIndex === -1) {
+							throw new Error("No gap space, should never happen")
+						}
+						const gap = gaps[gapIndex]
+						console.log("Found gap")
+						console.log(gap)
+						const { allocatedBlock, newGaps } = consumeGapSpace(gap, block);
+						allocatedBlocks.push(allocatedBlock);
+						console.log("New gaps")
+						console.log(allocatedBlock)
+						console.log(newGaps)
+						gaps.splice(gapIndex, 1, ...newGaps)
+					}
+
+					console.log("Ablocks");
+					console.log(allocatedBlocks);
+					const rows = [];
+
+					for (const aBlock of allocatedBlocks) {
+						addAllocatedBlockToRows(aBlock, rows);
+					}
+
+					console.log("Rows calculated")
+					console.log(rows)
+					return rows;
+				});
+
 				return {
 					currentTree,
-					skillsByTier,
+					skillRows,
 					trees,
 				}
 			}
