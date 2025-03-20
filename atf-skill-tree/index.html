@@ -35,21 +35,18 @@
 		}
 
 		.skill-tiers {
-			display: flex;
-			flex-direction: column;
-			gap: 40px;
-		}
-		.skill-row {
-			display: flex;
+			display: grid;
 			width: min-content;
 			margin-left: auto;
 			margin-right: auto;
-			gap: 40px;
-			align-items: stretch;
 		}
 
 		.empty-skill {
 			width: 197px;
+		}
+
+		.cell {
+			padding: 20px;
 		}
 
 		.skill {
@@ -118,13 +115,15 @@
 			<option :value="tree" v-for="tree in trees">{{ tree }}</option>
 		</select>
 		<h1 class="current-tree">{{ currentTree }}</h1>
-		<div class="skill-tiers">
-			<div class="skill-row" v-for="tier in skillRows">
-				<template v-for="skill in tier">
-					<Skill v-if="skill" :skill="skill"></Skill>
-					<div v-else class="empty-skill"></div>
+		<div class="skill-tiers" :style="{ gridTemplateColumns: `repeat(${rowSize}, 1fr)` }">
+			<template v-for="row in skillRows">
+				<template v-for="cell in row">
+					<div class="cell" :style="cell?.style">
+						<Skill v-if="cell?.skill" :skill="cell.skill"></Skill>
+						<div v-else class="empty-skill"></div>
+					</div>
 				</template>
-			</div>
+			</template>
 		</div>
 	</div>
 	<script type="text/javascript">
@@ -263,6 +262,16 @@
 				type: "U",
 				tree: "Pointman",
 			},
+			{
+				id: 10,
+				title: "Skill Three - Parent",
+				description: "Does a thing",
+				cost: 1,
+				tier: 1,
+				type: "U",
+				tree: "Combat",
+				dependencies: [ 3 ]
+			},
 		]
 
 		const { createApp, ref, computed, watch } = Vue
@@ -271,7 +280,6 @@
 			props: ['skill'],
 			setup(props) {
 				const style = ref({ 
-					gridRow: props.skill.tier  
 				})
 
 				const skillTypeClassMap = {
@@ -454,10 +462,38 @@
 					for (const offsetSkill of aBlock.block.skillsWithOffsets) {
 						const rowIndex = aBlock.r + offsetSkill.offsets.r
 						const row = rows[rowIndex] ?? [];
-						row[aBlock.c + offsetSkill.offsets.c] = offsetSkill.skill
+						row[aBlock.c + offsetSkill.offsets.c] = { skill: offsetSkill.skill }
 						rows[rowIndex] = row
 					}
+
 					return rows
+				}
+
+				function addStyleToAllocatedBlock(aBlock, rows) {
+					if (aBlock.block.skills.length < 2) {
+						return
+					}
+
+					const setStyle = (row, col, v) => { 
+						let o = rows[aBlock.r + row][aBlock.c + col]
+						if(o) {
+							o.style = { ...o.style, ...v };
+						} else {
+							o = { style: v }
+						}
+						rows[aBlock.r + row][aBlock.c + col] = o
+					}
+
+					const maxRow = aBlock.block.height - 1;
+					const maxCol = aBlock.block.width - 1;
+					for (let r = 0; r <= maxRow; r++) {
+						setStyle(r, 0, { borderLeft: "solid 1px black" });
+						setStyle(r, maxCol, { borderRight: "solid 1px black" });
+					}
+					for (let c = 0; c <= maxCol; c++) {
+						setStyle(0, c, { borderTop: "solid 1px black" });
+						setStyle(maxRow, c, { borderBottom: "solid 1px black" });
+					}
 				}
 
 				const skillRows = computed(() => {
@@ -517,6 +553,15 @@
 
 					for (const aBlock of allocatedBlocks) {
 						addAllocatedBlockToRows(aBlock, rows);
+						addStyleToAllocatedBlock(aBlock, rows);
+					}
+
+					const maxRowSize = Math.max(...(rows.map(row => row.length)));
+
+					for (const row of rows) {
+						if (row.length < maxRowSize) {
+							row[maxRowSize - 1] = undefined
+						}
 					}
 
 					console.log("Rows calculated")
@@ -524,10 +569,13 @@
 					return rows;
 				});
 
+				const rowSize = computed(() => Math.max(...(skillRows.value.map(row => row.length))))
+
 				return {
 					currentTree,
 					skillRows,
 					trees,
+					rowSize,
 				}
 			}
 		})
