@@ -182,7 +182,7 @@
 		const testSkills = [
 			{
 				id: 1,
-				title: "Skill One",
+				title: "Skill 1 (Family A)",
 				description: "Does a thing",
 				cost: 1,
 				tier: 0,
@@ -191,7 +191,7 @@
 			},
 			{
 				id: 2,
-				title: "Skill Two",
+				title: "Skill 2",
 				description: "Does a thing",
 				cost: 1,
 				tier: 1,
@@ -200,22 +200,23 @@
 			},
 			{
 				id: 3,
-				title: "Skill Three",
+				title: "Skill 3 (Family A)",
 				description: "Does a thing",
 				cost: 1,
 				tier: 1,
 				type: "P",
 				tree: "Combat",
-				horizontalPriority: 1,
+				//horizontalPriority: 1,
 				dependencies: [1],
 			},
 			{
 				id: 4,
-				title: "Skill Four",
+				title: "Skill Four (Family A)",
 				description: "Does a thing",
 				cost: 1,
-				tier: 2,
+				tier: 1,
 				tree: "Combat",
+				dependencies: [3],
 			},
 			{
 				id: 5,
@@ -237,6 +238,54 @@
 			},
 			{
 				id: 7,
+				title: "Skill S - 1A",
+				description: "Does something",
+				cost: 2,
+				tier: 1,
+				type: "U",
+				tree: "Combat",
+			},
+			{
+				id: 8,
+				title: "Skill S - 1B",
+				description: "Does something",
+				cost: 2,
+				tier: 1,
+				type: "U",
+				tree: "Combat",
+			},
+			{
+				id: 9,
+				title: "Skill S - 2",
+				description: "Does something",
+				cost: 2,
+				tier: 2,
+				type: "U",
+				tree: "Combat",
+				dependencies: [ 7, 8 ],
+			},
+			{
+				id: 10,
+				title: "Skill S - 3",
+				description: "Does something",
+				cost: 2,
+				tier: 3,
+				type: "U",
+				tree: "Combat",
+				dependencies: [ 9 ],
+			},
+			{
+				id: 11,
+				title: "Skill S - 4",
+				description: "Does something",
+				cost: 2,
+				tier: 4,
+				type: "U",
+				tree: "Combat",
+				dependencies: [ 10 ],
+			},
+			{
+				id: 107,
 				title: "Skill One",
 				description: "Does a thing",
 				cost: 1,
@@ -245,7 +294,7 @@
 				tree: "Pointman",
 			},
 			{
-				id: 8,
+				id: 108,
 				title: "Skill Two",
 				description: "Does a thing",
 				cost: 1,
@@ -254,23 +303,13 @@
 				tree: "Pointman",
 			},
 			{
-				id: 9,
+				id: 109,
 				title: "Skill Three",
 				description: "Does a thing",
 				cost: 1,
 				tier: 1,
 				type: "U",
 				tree: "Pointman",
-			},
-			{
-				id: 10,
-				title: "Skill Three - Parent",
-				description: "Does a thing",
-				cost: 1,
-				tier: 1,
-				type: "U",
-				tree: "Combat",
-				dependencies: [ 3 ]
 			},
 		]
 
@@ -348,10 +387,6 @@
 						dependencies: skill.dependencies ?? [],
 					}));
 
-					for (const skill of normalizedSkills) {
-						skill.dependencies = skill.dependencies.map(skillId => normalizedSkills.find(skill => skill.id === skillId))
-					}
-
 					return normalizedSkills
 				})
 
@@ -397,25 +432,45 @@
 
 				const skillsByTierHighestFirst = computed(() => skillsByTier.value.slice().reverse())
 
-				function getSkillBlock(skill, offsets = { c: 0, r: 0 }) {
-					const childBlocks = [];
-					let columnOffset = offsets.c;
-					for (const dep of (skill.dependencies ?? [])) {
-						const childBlock = getSkillBlock(dep, { c: columnOffset, r: offsets.r +	1 })
-						childBlocks.push(childBlock);
-						columnOffset += childBlock.width;
+				function addStyleToAllocatedBlock(aBlock, rows) {
+					if (aBlock.block.skills.length < 2) {
+						return
 					}
-					const childrenWidth = childBlocks.reduce((total, block) => total + block.width, 0);
-					const childrenHeight = Math.max(childBlocks.map(block => block.height));
-					return {
-						height: 1 + childrenHeight,
-						width: Math.max(childrenWidth, 1),
-						startRow: highestTier.value - skill.tier,
-						endRow: (highestTier.value - skill.tier) + childrenHeight,
-						rootSkill: skill,
-						skills: childBlocks.reduce((acc, block) => acc.concat(block.skills), [skill]),
-						skillsWithOffsets: childBlocks.reduce((acc, block) => acc.concat(block.skillsWithOffsets), [{ skill, offsets }]),
+
+					const setStyle = (row, col, v) => { 
+						let o = rows[aBlock.r + row][aBlock.c + col]
+						if(o) {
+							o.style = { ...o.style, ...v };
+						} else {
+							o = { style: v }
+						}
+						rows[aBlock.r + row][aBlock.c + col] = o
 					}
+
+					const maxRow = aBlock.block.height - 1;
+					const maxCol = aBlock.block.width - 1;
+					for (let r = 0; r <= maxRow; r++) {
+						setStyle(r, 0, { borderLeft: "solid 1px black" });
+						setStyle(r, maxCol, { borderRight: "solid 1px black" });
+					}
+					for (let c = 0; c <= maxCol; c++) {
+						setStyle(0, c, { borderTop: "solid 1px black" });
+						setStyle(maxRow, c, { borderBottom: "solid 1px black" });
+					}
+				}
+
+				const sampleNode = {
+					row: 0,
+				}
+
+				const sampleBlock = {
+					startRow: 0,
+					endRow: 0,
+					height: 0,
+					width: 0,
+					node: undefined,
+					blocks: [],
+					column: undefined, // Assigned when allocated to a gap
 				}
 
 				// Assuming a top-left coord system for both, check if the block fits in a gap.
@@ -448,56 +503,25 @@
 					}
 					// Top space doesn't matter - as we'll already have processed the higher tier.
 					// Left space can't exist, it's a top-left coord system, flowing right and down.
+					block.column = gap.c
 					return {
-						allocatedBlock: {
-							r: block.startRow,
-							c: gap.c,
-							block,
-						},
+						positionedBlock: block,
 						newGaps,
 					}
 				};
 
-				function addAllocatedBlockToRows(aBlock, rows) {
-					for (const offsetSkill of aBlock.block.skillsWithOffsets) {
-						const rowIndex = aBlock.r + offsetSkill.offsets.r
-						const row = rows[rowIndex] ?? [];
-						row[aBlock.c + offsetSkill.offsets.c] = { skill: offsetSkill.skill }
-						rows[rowIndex] = row
-					}
-
-					return rows
-				}
-
-				function addStyleToAllocatedBlock(aBlock, rows) {
-					if (aBlock.block.skills.length < 2) {
-						return
-					}
-
-					const setStyle = (row, col, v) => { 
-						let o = rows[aBlock.r + row][aBlock.c + col]
-						if(o) {
-							o.style = { ...o.style, ...v };
-						} else {
-							o = { style: v }
+				const layoutBlocks = (blocks) => {
+					if (blocks.length === 1) {
+						const block = blocks[0];
+						block.column = 0;
+						return {
+							width: block.width,
+							height: block.height,
+							positionedBlocks: [block],
 						}
-						rows[aBlock.r + row][aBlock.c + col] = o
 					}
-
-					const maxRow = aBlock.block.height - 1;
-					const maxCol = aBlock.block.width - 1;
-					for (let r = 0; r <= maxRow; r++) {
-						setStyle(r, 0, { borderLeft: "solid 1px black" });
-						setStyle(r, maxCol, { borderRight: "solid 1px black" });
-					}
-					for (let c = 0; c <= maxCol; c++) {
-						setStyle(0, c, { borderTop: "solid 1px black" });
-						setStyle(maxRow, c, { borderBottom: "solid 1px black" });
-					}
-				}
-
-				const skillRows = computed(() => {
-					// Gaps for this tier of skills
+					// Blocks should be sorted by row
+					blocks.sort((a, b) => a.row - b.row)
 					// Gaps should *always* be sorted by column, to allow for reconciliation.
 					// This occurs naturally when a gap split occurs - as long as it returns the bottom fragment, then the right fragment.
 					let gaps = [{
@@ -507,29 +531,35 @@
 						w: 9999,
 					}];
 
-					const blocks = [];
-					const allocatedBlocks = [];
-					const dependentSkillIds = [];
+					let height = 0;
+					let width = 0; 
 
+					const positionedBlocks = [];
 
-					for (const skill of skillsInCurrentTree.value) {
-						for (const dependentSkill of skill.dependencies) {
-							dependentSkillIds.push(dependentSkill.id)
-						}
-					}
-					
-					for (const skill of skillsInCurrentTree.value) {
-						if (dependentSkillIds.includes(skill.id)) { continue }
-						const block = getSkillBlock(skill);
-						blocks.push(block);
-					}
-
-					blocks.sort((a, b) => a.startRow - b.startRow)
-					console.log(blocks)
-
+					// TODO - Better gap handling to avoid laddering
+					let lastRow = blocks[0].row
 					for (const block of blocks) {
-						// TODO - Reconcile
-						console.log(`Processing block - ${block.rootSkill.title}`);
+						// Check if we've descended into the next row. Works because blocks is sorted by row above.
+						if (block.row != lastRow) {
+							// Renconciles gaps - merges where possible.
+							let lastGap = undefined
+							let newGaps = []
+							for (const gap of gaps) {
+								// Lower the row of the gap to the one we're current processing
+								gap.r = Math.max(gap.r, block.row);
+								// Check if two neighbouring gaps are equal. Should happen often, since we fill from the top-left.
+								if (lastGap && lastGap.r === gap.r && lastGap.h === gap.h) {
+									console.log("merging gaps")
+									lastGap.w = lastGap.w + gap.w
+									continue
+								}
+								newGaps.push(gap)
+								lastGap = gap
+							}
+							gaps = newGaps
+						}
+
+						console.log(`Processing block - ${block.node?.skill?.title}`);
 						console.log(block)
 						console.log(JSON.stringify(gaps))
 						const gapIndex = gaps.findIndex(gap => gapHasSpace(gap, block));
@@ -539,34 +569,134 @@
 						const gap = gaps[gapIndex]
 						console.log("Found gap")
 						console.log(gap)
-						const { allocatedBlock, newGaps } = consumeGapSpace(gap, block);
-						allocatedBlocks.push(allocatedBlock);
+						const { positionedBlock, newGaps } = consumeGapSpace(gap, block);
+						positionedBlocks.push(positionedBlock);
+						height = Math.max(positionedBlock.startRow + positionedBlock.height, height) 
+						width = Math.max(positionedBlock.column + positionedBlock.width, width) 
 						console.log("New gaps")
-						console.log(allocatedBlock)
+						console.log(positionedBlock)
 						console.log(newGaps)
 						gaps.splice(gapIndex, 1, ...newGaps)
 					}
 
-					console.log("Ablocks");
-					console.log(allocatedBlocks);
-					const rows = [];
+					console.log("Layout complete")
+					console.log(width)
+					console.log(height)
+					console.log(positionedBlocks)
 
-					for (const aBlock of allocatedBlocks) {
-						addAllocatedBlockToRows(aBlock, rows);
-						addStyleToAllocatedBlock(aBlock, rows);
+					return {
+						width,
+						height,
+						positionedBlocks,
+					}
+				}
+
+				// Recurse after to build grid - more efficient to do it in one pass
+				const createBlockLayoutFromNode = (node, parentNode = { row: 0 }) => {
+					const startRow = node.row - parentNode.row;
+					const childBlocks = node.dependencies.map(child => createBlockLayoutFromNode(child, node));
+					const nodeBlock = {
+						startRow: 0,
+						endRow: 0,
+						height: 1,
+						width: 1,
+						node,
+						blocks: [],
 					}
 
-					const maxRowSize = Math.max(...(rows.map(row => row.length)));
+					console.log(`Creating layout for ${node.skill.title}`)
+					console.log(node)
+					console.log(parentNode)
+					const layout = layoutBlocks([nodeBlock, ...childBlocks])
+
+					return {
+						// First row index where this block has a node
+						startRow,
+						// Final index where this block has a node
+						endRow: startRow + layout.height - 1,
+						height: layout.height,
+						width: layout.width,
+						blocks: layout.positionedBlocks,
+					}
+				}
+
+				function addPositionedBlockToRows(block, rows, offset = { row: 0, column: 0 }) {
+					console.log(block, offset);
+					const row = offset.row + block.startRow;
+					const column = offset.column + block.column;
+					if (block.node) {
+						rows[row][column] = block.node
+					}
+					for (let childBlock of block.blocks) {
+						addPositionedBlockToRows(childBlock, rows, { row, column })
+					}
+				}
+
+				function layoutToRows(layout) {
+					const rows = [];
+
+					for (let i = 0; i < layout.height; i++) {
+						rows[i] = [];
+					}
+
+					for (let block of layout.positionedBlocks) {
+						addPositionedBlockToRows(block, rows);
+					}
+
+					return rows;
+				}
+
+				const createGridFromNodes = (nodes) => {
+					const dependentNodes = [];
+
+					for (const node of nodes) {
+						for (const dependentNode of node.dependencies) {
+							dependentNodes.push(dependentNode)
+						}
+					}
+
+					const rootNodes = nodes.filter(node => !dependentNodes.includes(node));
+
+					rootNodes.sort((a, b) => a.row - b.row)
+
+					const blocks = rootNodes.map(rootNode => createBlockLayoutFromNode(rootNode));
+
+					const layout = layoutBlocks(blocks);
+					console.log("Full layout");
+					console.log(layout);
+					const rows = layoutToRows(layout);
 
 					for (const row of rows) {
-						if (row.length < maxRowSize) {
-							row[maxRowSize - 1] = undefined
+						if (row.length < layout.width) {
+							// Extend the row to match the others
+							row[layout.width - 1] = undefined
 						}
 					}
 
 					console.log("Rows calculated")
 					console.log(rows)
 					return rows;
+				};
+
+				const skillRows = computed(() => {
+					const nodes = skillsInCurrentTree.value.map(skill => ({
+						// Needed to be a valid node
+						row: highestTier.value - skill.tier,
+						// Extra details for this node
+						skill,
+						style: {},
+					}));
+
+					for (const node of nodes) {
+						node.dependencies = node.skill.dependencies.map(skillId => nodes.find(nodeToCheck => nodeToCheck.skill.id === skillId))
+					}
+
+					//addStyleToAllocatedBlock(aBlock, rows);
+					const grid = createGridFromNodes(nodes);
+
+					console.log("GRID");
+					console.log(grid);
+					return grid;
 				});
 
 				const rowSize = computed(() => Math.max(...(skillRows.value.map(row => row.length))))
