@@ -474,10 +474,6 @@
 				}
 
 				const findGap = (gaps, block) => {
-					console.log("Finding gaps")
-					console.log({
-						gaps, block
-					})
 					let consumedGaps = [];
 					let currentWidth = 0;
 					let consumedGapsStartIndex = 0;
@@ -495,13 +491,6 @@
 							currentWidth = 0;
 							continue
 						};
-
-						console.log("Gap check")
-						console.log(JSON.stringify({
-							consumedGaps,
-							currentWidth,
-							consumedGapsStartIndex,
-						}))
 
 						// If we've found a valid space
 						if ( consumedGaps.length > 0 && block.width <= currentWidth ) {
@@ -532,9 +521,6 @@
 								gaps,
 								positionedBlock: block,
 							}
-							// Remove height
-							// This also means you can replace gapHasSpace and consumeGapSpace.
-							// Need to make sure you replace gaps with the value returned from this.
 						}
 					}
 
@@ -572,24 +558,13 @@
 					// Has come about because of the change to recursive layout rendering.
 					let lastRow = blocks[0].row
 					for (const block of blocks) {
-						console.log(`Processing block - ${block.node?.skill?.title}`);
-						console.log(block)
-						console.log(JSON.stringify(gaps))
 						// Right now this modifies gaps, so don't need newGaps
 						const findGapResult = findGap(gaps, block);
 						const { gaps: newGaps, positionedBlock } = findGapResult;
 						positionedBlocks.push(positionedBlock);
 						height = Math.max(positionedBlock.startRow + positionedBlock.height, height) 
 						width = Math.max(positionedBlock.column + positionedBlock.width, width) 
-						console.log("New gaps")
-						console.log(positionedBlock)
-						console.log(newGaps)
 					}
-
-					console.log("Layout complete")
-					console.log(width)
-					console.log(height)
-					console.log(positionedBlocks)
 
 					return {
 						width,
@@ -611,9 +586,6 @@
 						blocks: [],
 					}
 
-					console.log(`Creating layout for ${node.skill.title}`)
-					console.log(node)
-					console.log(parentNode)
 					const layout = layoutBlocks([nodeBlock, ...childBlocks])
 
 					return {
@@ -628,7 +600,6 @@
 				}
 
 				function addPositionedBlockToRows(block, rows, offset = { row: 0, column: 0 }) {
-					console.log(block, offset);
 					const row = offset.row + block.startRow;
 					const column = offset.column + block.column;
 					if (block.node) {
@@ -680,8 +651,6 @@
 						}
 					}
 
-					console.log("Rows calculated")
-					console.log(rows)
 					return rows;
 				};
 
