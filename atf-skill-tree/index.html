@@ -473,42 +473,75 @@
 					column: undefined, // Assigned when allocated to a gap
 				}
 
-				// Assuming a top-left coord system for both, check if the block fits in a gap.
-				const gapHasSpace = (gap, block) => {
-					return block.startRow >= gap.r &&
-						   block.endRow < gap.r + gap.h &&
-						   block.width <= gap.w
-				};
+				const findGap = (gaps, block) => {
+					console.log("Finding gaps")
+					console.log({
+						gaps, block
+					})
+					let consumedGaps = [];
+					let currentWidth = 0;
+					let consumedGapsStartIndex = 0;
+					for (let i = 0; i < gaps.length; i++) {
+						const gap = gaps[i];
+						// Could be moved into the check below.
+						if (consumedGaps.length === 0) {
+							consumedGapsStartIndex = i;
+						}
+						if ( gap.r <= block.startRow ) {
+							consumedGaps.push(gap)
+							currentWidth += gap.w;
+						} else {
+							consumedGaps = [];
+							currentWidth = 0;
+							continue
+						};
 
-				const consumeGapSpace = (gap, block) => {
-					const newGaps = [];
-					if (block.height < gap.h) {
-						// Bottom space
-						// Needs to be before the top space, so it gets prioritised in the search.
-						newGaps.push({
-							r: gap.r + block.height,
-							c: gap.c,
-							w: block.width,
-							h: gap.h - block.height,
-						})
+						console.log("Gap check")
+						console.log(JSON.stringify({
+							consumedGaps,
+							currentWidth,
+							consumedGapsStartIndex,
+						}))
+
+						// If we've found a valid space
+						if ( consumedGaps.length > 0 && block.width <= currentWidth ) {
+							// Pushes new bottom gap that's guaranteed to have formed
+							const newBottomGap = {
+								r: block.startRow + block.height,
+								c: consumedGaps[0].c,
+								w: block.width,
+								h: consumedGaps[0].h - block.height,
+							}
+							const newGaps = [newBottomGap];
+
+							const leftoverWidth = currentWidth - block.width;
+							if (leftoverWidth > 0) {
+								// It will always be the last gap, since this runs as soon as we have enough space.
+								const lastGap = consumedGaps.slice(-1)[0]
+								const consumedWidth = lastGap.w - leftoverWidth;
+								newGaps.push({
+									r: lastGap.r,
+									c: lastGap.c + consumedWidth,
+									w: leftoverWidth,
+									h: lastGap.h,
+								})
+							}
+
+							gaps.splice(consumedGapsStartIndex, consumedGaps.length, ...newGaps);
+
+							block.column = consumedGaps[0].c;
+							return {
+								gaps,
+								positionedBlock: block,
+							}
+							// Remove height
+							// This also means you can replace gapHasSpace and consumeGapSpace.
+							// Need to make sure you replace gaps with the value returned from this.
+						}
 					}
-					if (block.width < gap.w) {
-						// Right hand space
-						newGaps.push({
-							r: gap.r,
-							c: gap.c + block.width,
-							w: gap.w - block.width,
-							h: gap.h,
-						})
-					}
-					// Top space doesn't matter - as we'll already have processed the higher tier.
-					// Left space can't exist, it's a top-left coord system, flowing right and down.
-					block.column = gap.c
-					return {
-						positionedBlock: block,
-						newGaps,
-					}
-				};
+
+					return undefined
+				}
 
 				const layoutBlocks = (blocks) => {
 					if (blocks.length === 1) {
@@ -536,47 +569,24 @@
 
 					const positionedBlocks = [];
 
-					// TODO - Better gap handling to avoid laddering
+					// TODO - Better gap handling to avoid laddering.
+					// The bottom gap is too narrow to slow in a big block.
+					// Could try an approach where gaps are merged, if the item is too big?
+					// Has come about because of the change to recursive layout rendering.
 					let lastRow = blocks[0].row
 					for (const block of blocks) {
-						// Check if we've descended into the next row. Works because blocks is sorted by row above.
-						if (block.row != lastRow) {
-							// Renconciles gaps - merges where possible.
-							let lastGap = undefined
-							let newGaps = []
-							for (const gap of gaps) {
-								// Lower the row of the gap to the one we're current processing
-								gap.r = Math.max(gap.r, block.row);
-								// Check if two neighbouring gaps are equal. Should happen often, since we fill from the top-left.
-								if (lastGap && lastGap.r === gap.r && lastGap.h === gap.h) {
-									console.log("merging gaps")
-									lastGap.w = lastGap.w + gap.w
-									continue
-								}
-								newGaps.push(gap)
-								lastGap = gap
-							}
-							gaps = newGaps
-						}
-
 						console.log(`Processing block - ${block.node?.skill?.title}`);
 						console.log(block)
 						console.log(JSON.stringify(gaps))
-						const gapIndex = gaps.findIndex(gap => gapHasSpace(gap, block));
-						if (gapIndex === -1) {
-							throw new Error("No gap space, should never happen")
-						}
-						const gap = gaps[gapIndex]
-						console.log("Found gap")
-						console.log(gap)
-						const { positionedBlock, newGaps } = consumeGapSpace(gap, block);
+						// Right now this modifies gaps, so don't need newGaps
+						const findGapResult = findGap(gaps, block);
+						const { gaps: newGaps, positionedBlock } = findGapResult;
 						positionedBlocks.push(positionedBlock);
 						height = Math.max(positionedBlock.startRow + positionedBlock.height, height) 
 						width = Math.max(positionedBlock.column + positionedBlock.width, width) 
 						console.log("New gaps")
 						console.log(positionedBlock)
 						console.log(newGaps)
-						gaps.splice(gapIndex, 1, ...newGaps)
 					}
 
 					console.log("Layout complete")
