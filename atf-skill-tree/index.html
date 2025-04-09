@@ -510,7 +510,6 @@
 								r: block.startRow + block.height,
 								c: consumedGaps[0].c,
 								w: block.width,
-								h: consumedGaps[0].h - block.height,
 							}
 							const newGaps = [newBottomGap];
 
@@ -523,7 +522,6 @@
 									r: lastGap.r,
 									c: lastGap.c + consumedWidth,
 									w: leftoverWidth,
-									h: lastGap.h,
 								})
 							}
 
@@ -560,7 +558,6 @@
 					let gaps = [{
 						r: 0,
 						c: 0,
-						h: 9999,
 						w: 9999,
 					}];
 
