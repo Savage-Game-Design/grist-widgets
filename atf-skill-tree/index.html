@@ -118,7 +118,7 @@
 		<div class="skill-tiers" :style="{ gridTemplateColumns: `repeat(${rowSize}, 1fr)` }">
 			<template v-for="row in skillRows">
 				<template v-for="cell in row">
-					<div class="cell" :style="cell?.style">
+					<div :class="['cell'].concat(cell?.classes ?? [])" :style="cell?.style">
 						<Skill v-if="cell?.skill" :skill="cell.skill"></Skill>
 						<div v-else class="empty-skill"></div>
 					</div>
@@ -648,6 +648,35 @@
 						if (row.length < layout.width) {
 							// Extend the row to match the others
 							row[layout.width - 1] = undefined
+						}
+					}
+
+					for (const block of layout.positionedBlocks) {
+						if (block.width > 1 || block.height > 1) {
+							const xOffset = block.column;
+							const yOffset = block.startRow;
+							for (let i = 0; i < block.width; i++) {
+								const x = xOffset + i;
+								const topNode = rows[yOffset][x] ?? { style: {} };
+								topNode.style.borderTop = "solid 1px grey";
+								rows[yOffset][x] = topNode;
+								const bottomY = yOffset + block.height - 1;
+								const bottomNode = rows[bottomY][x] ?? { style: {} };
+								bottomNode.style.borderBottom = "solid 1px grey";
+								rows[bottomY][x] = bottomNode;
+							}
+							for (let i = 0; i < block.height; i++) {
+								const y = yOffset + i;
+								const topX = xOffset;
+								const topNode = rows[y][topX] ?? { style: {} };
+								topNode.style.borderLeft = "solid 1px grey";
+								rows[y][topX] = topNode;
+
+								const bottomX = xOffset + block.width - 1;
+								const bottomNode = rows[y][bottomX] ?? { style: {} };
+								bottomNode.style.borderRight = "solid 1px grey";
+								rows[y][bottomX] = bottomNode;
+							}
 						}
 					}
 
