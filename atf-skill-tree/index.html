@@ -19,6 +19,24 @@
 			}
 		}
 
+		.dependencyOverlay {
+			position: absolute;
+			top: 0;
+			right: 0;
+			left: 0;
+			bottom: 0;
+			background-color: gray;
+			opacity: 0.8;
+			color: white;
+			font-size: 2em;
+		}
+
+		.flexCenter {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
 		.tree-selector {
 			position: fixed;
 			top: 10px;
@@ -47,6 +65,7 @@
 
 		.cell {
 			padding: 20px;
+			display: flex;
 		}
 
 		.skill {
@@ -107,19 +126,22 @@
 			<p class="description">{{ skill.description }}</p>
 			<p class="cost">{{ skill.cost }} SP</p>
 		</div>
+		<div class="dependencyOverlay flexCenter" v-show="showDepOverlay">
+			<div>Dependency</div>
+		</div>
 	</div>
 </template>
 <body>
 	<div id="app">
-		<select class="tree-selector no-print" @change="currentTree = $event.target.value">
+		<select class="tree-selector no-print" @change="currentTreeName = $event.target.value">
 			<option :value="tree" v-for="tree in trees">{{ tree }}</option>
 		</select>
-		<h1 class="current-tree">{{ currentTree }}</h1>
+		<h1 class="current-tree">{{ currentTreeName }}</h1>
 		<div class="skill-tiers" :style="{ gridTemplateColumns: `repeat(${rowSize}, 1fr)` }">
 			<template v-for="row in skillRows">
 				<template v-for="cell in row">
 					<div :class="['cell'].concat(cell?.classes ?? [])" :style="cell?.style">
-						<Skill v-if="cell?.skill" :skill="cell.skill"></Skill>
+						<Skill v-if="cell?.skill" :skill="cell.skill" :show-dep-overlay="cell?.showDependency" @mouseenter="mouseenter(cell, $event)" @mouseleave="mouseexit"></Skill>
 						<div v-else class="empty-skill"></div>
 					</div>
 				</template>
@@ -171,7 +193,7 @@
 				type: "Numeric",
 			},
 			{
-				name: "dependencies",
+				name: "dependencyIds",
 				title: "Dependencies",
 				optional: true,
 				type: "Reference"
@@ -207,7 +229,7 @@
 				type: "P",
 				tree: "Combat",
 				//horizontalPriority: 1,
-				dependencies: [1],
+				dependencyIds: [1],
 			},
 			{
 				id: 4,
@@ -216,7 +238,7 @@
 				cost: 1,
 				tier: 1,
 				tree: "Combat",
-				dependencies: [3],
+				dependencyIds: [3],
 			},
 			{
 				id: 5,
@@ -262,7 +284,7 @@
 				tier: 2,
 				type: "U",
 				tree: "Combat",
-				dependencies: [ 7, 8 ],
+				dependencyIds: [ 7, 8 ],
 			},
 			{
 				id: 10,
@@ -272,7 +294,7 @@
 				tier: 3,
 				type: "U",
 				tree: "Combat",
-				dependencies: [ 9 ],
+				dependencyIds: [ 9 ],
 			},
 			{
 				id: 11,
@@ -282,7 +304,7 @@
 				tier: 4,
 				type: "U",
 				tree: "Combat",
-				dependencies: [ 10 ],
+				dependencyIds: [ 10 ],
 			},
 			{
 				id: 107,
@@ -316,11 +338,11 @@
 		const { createApp, ref, computed, watch } = Vue
 
 		const Skill = {
-			props: ['skill'],
-			setup(props) {
-				const style = ref({ 
-				})
-
+			props: {
+				skill: Object,
+				showDepOverlay: Boolean,
+			},
+			setup(props, ctx) {
 				const skillTypeClassMap = {
 					P: 'passive',
 					A: 'active',
@@ -338,8 +360,7 @@
 				})
 
 				return {
-					style,
-					classes
+					classes,
 				}
 			},
 			template: document.querySelector('#skill').getHTML()
@@ -384,13 +405,13 @@
 				const allSkills = computed(() => {
 					const normalizedSkills = rawSkills.value.map(skill => ({
 						...skill,
-						dependencies: skill.dependencies ?? [],
+						dependencyIds: skill.dependencyIds ?? [],
 					}));
 
 					return normalizedSkills
 				})
 
-				const trees = computed(() => {
+				const treeNames = computed(() => {
 					console.log("Evaluating trees")
 					console.log(allSkills.value)
 					const trees = new Set();
@@ -400,64 +421,47 @@
 					return Array.from(trees)
 				})
 
-				const currentTree = ref(trees.value[0])
+				const currentTreeName = ref(treeNames.value[0])
 
-				watch(trees, (newTrees) => {
-					if (!newTrees.includes(currentTree.value)) {
-						currentTree.value = newTrees[0]
+				watch(treeNames, (newTrees) => {
+					if (!newTrees.includes(currentTreeName.value)) {
+						currentTreeName.value = newTrees[0]
 					}
 				})
 
-				const skillsInCurrentTree = computed(() => {
-					console.log("Evaluating skills")
-					console.log(currentTree)
-					console.log(allSkills.value)
-					return allSkills.value.filter((skill) => skill.tree === currentTree.value)
-				})
+				const highestTier = computed(() => Math.max(...allSkills.value.map(skill => skill.tier)))
 
-				const highestTier = computed(() => Math.max(...skillsInCurrentTree.value.map(skill => skill.tier)))
-
-				const skillsByTier = computed(() => {
-					console.log("Evaluating tiers")
-					console.log(skillsInCurrentTree.value)
-					const tiers = [];
-					for (let i = 0; i <= highestTier.value; i++) {
-						tiers[i] = [];
-					}
-					for (let skill of skillsInCurrentTree.value) {
-						tiers[skill.tier].push(skill)
-					}
-					return tiers
-				})
-
-				const skillsByTierHighestFirst = computed(() => skillsByTier.value.slice().reverse())
-
-				function addStyleToAllocatedBlock(aBlock, rows) {
-					if (aBlock.block.skills.length < 2) {
-						return
-					}
-
-					const setStyle = (row, col, v) => { 
-						let o = rows[aBlock.r + row][aBlock.c + col]
-						if(o) {
-							o.style = { ...o.style, ...v };
-						} else {
-							o = { style: v }
+				const skillTrees = computed(() => {
+					const trees = {};
+					for (const treeName of treeNames.value) {
+						const tree = {
+							name: treeName,
+							allSkills: [],
+							skillsById: {},
+							skillsByTier: [],
 						}
-						rows[aBlock.r + row][aBlock.c + col] = o
+						trees[treeName] = tree
+
+						for (let i = 0; i <= highestTier.value; i++) {
+							tree.skillsByTier[i] = [];
+						}
 					}
 
-					const maxRow = aBlock.block.height - 1;
-					const maxCol = aBlock.block.width - 1;
-					for (let r = 0; r <= maxRow; r++) {
-						setStyle(r, 0, { borderLeft: "solid 1px black" });
-						setStyle(r, maxCol, { borderRight: "solid 1px black" });
+					for (let skill of allSkills.value) {
+						const tree = trees[skill.tree];
+						tree.allSkills.push(skill);
+						tree.skillsById[skill.id] = skill;
+						tree.skillsByTier[skill.tier].push(skill);
 					}
-					for (let c = 0; c <= maxCol; c++) {
-						setStyle(0, c, { borderTop: "solid 1px black" });
-						setStyle(maxRow, c, { borderBottom: "solid 1px black" });
+
+					for (const tree of Object.values(trees)) {
+						tree.skillsByTierHighestFirst = tree.skillsByTier.slice().reverse()
 					}
-				}
+
+					return trees;
+				})
+
+				const currentTree = computed(() => skillTrees.value[currentTreeName.value])
 
 				const sampleNode = {
 					row: 0,
@@ -651,6 +655,8 @@
 						}
 					}
 
+					/*
+					// Border formatting code
 					for (const block of layout.positionedBlocks) {
 						if (block.width > 1 || block.height > 1) {
 							const xOffset = block.column;
@@ -679,38 +685,82 @@
 							}
 						}
 					}
+					*/
 
 					return rows;
 				};
 
-				const skillRows = computed(() => {
-					const nodes = skillsInCurrentTree.value.map(skill => ({
+				const calcSkillNodes = (newTree) => {
+					const nodes = newTree.allSkills.map(skill => ({
+						id: skill.id,
 						// Needed to be a valid node
 						row: highestTier.value - skill.tier,
 						// Extra details for this node
 						skill,
-						style: {},
 					}));
 
 					for (const node of nodes) {
-						node.dependencies = node.skill.dependencies.map(skillId => nodes.find(nodeToCheck => nodeToCheck.skill.id === skillId))
+						node.dependencies = node.skill.dependencyIds.map(skillId => nodes.find(nodeToCheck => nodeToCheck.skill.id === skillId))
 					}
 
-					//addStyleToAllocatedBlock(aBlock, rows);
-					const grid = createGridFromNodes(nodes);
+					return nodes;
+				};
+
+				const skillNodes = ref(currentTree.value ? calcSkillNodes(currentTree.value) : []);
+				watch(currentTree, (newTree) => {
+					skillNodes.value = calcSkillNodes(newTree);
+				});
+
+
+				const skillGrid = computed(() => {
+					const nodes = skillNodes.value;
+					if (nodes.length === 0) { return []; };
+
+					const grid = createGridFromNodes(skillNodes.value);
 
 					console.log("GRID");
 					console.log(grid);
 					return grid;
+				})
+
+
+				const hoveredNode = ref(undefined);
+
+				const setShowDependency = (node, value) => {
+					node.showDependency = value;
+					for (let subnode of node?.dependencies) {
+						setShowDependency(subnode, value);
+					}
+				}
+
+				watch(hoveredNode, (newNode, oldNode) => {
+					newNode?.dependencies.forEach((node) => setShowDependency(node, true))
+					oldNode?.dependencies.forEach((node) => setShowDependency(node, false))
+				})
+
+				const skillRows = computed(() => {
+					return skillGrid.value;
 				});
 
 				const rowSize = computed(() => Math.max(...(skillRows.value.map(row => row.length))))
 
+				const mouseenter = (skill, event) => {
+					console.log("Entered", skill)
+					hoveredNode.value = skill;
+				}
+
+				const mouseexit = () => {
+					console.log("Exit", hoveredNode.value)
+					hoveredNode.value = undefined;
+				}
+
 				return {
-					currentTree,
+					currentTreeName,
 					skillRows,
-					trees,
+					trees: treeNames,
 					rowSize,
+					mouseenter,
+					mouseexit,
 				}
 			}
 		})
