@@ -63,9 +63,23 @@
 			width: 197px;
 		}
 
+		.row {
+			display: grid;
+			grid-template-columns: subgrid;
+			border-top: solid 1px black;
+		}
+
 		.cell {
 			padding: 20px;
 			display: flex;
+		}
+
+		.tier {
+			display: flex;
+			align-items: center;
+			font-size: 1.25em;
+			white-space: nowrap;
+			padding: 10px;
 		}
 
 		.skill {
@@ -137,14 +151,17 @@
 			<option :value="tree" v-for="tree in trees">{{ tree }}</option>
 		</select>
 		<h1 class="current-tree">{{ currentTreeName }}</h1>
-		<div class="skill-tiers" :style="{ gridTemplateColumns: `repeat(${rowSize}, 1fr)` }">
-			<template v-for="row in skillRows">
-				<template v-for="cell in row">
-					<div :class="['cell'].concat(cell?.classes ?? [])" :style="cell?.style">
-						<Skill v-if="cell?.skill" :skill="cell.skill" :show-dep-overlay="cell?.showDependency" @mouseenter="mouseenter(cell, $event)" @mouseleave="mouseexit"></Skill>
-						<div v-else class="empty-skill"></div>
-					</div>
-				</template>
+		<div class="skill-tiers" :style="{ gridTemplateColumns: `repeat(${rowSize + 1}, 1fr)` }">
+			<template v-for="row, index in skillRows">
+				<div class="row" :style="{ gridColumn: `1 / span ${rowSize+1}` }">
+					<div class="tier">Tier {{rowSize - index - 1}}</div>
+					<template v-for="cell in row">
+						<div :class="['cell'].concat(cell?.classes ?? [])" :style="cell?.style">
+							<Skill v-if="cell?.skill" :skill="cell.skill" :show-dep-overlay="cell?.showDependency" @mouseenter="mouseenter(cell, $event)" @mouseleave="mouseexit"></Skill>
+							<div v-else class="empty-skill"></div>
+						</div>
+					</template>
+				</div>
 			</template>
 		</div>
 	</div>
@@ -187,7 +204,7 @@
 				type: "Text",
 			},
 			{
-				name: "horizontalPriority",
+				name: "priority",
 				title: "Horizontal priority",
 				optional: true,
 				type: "Numeric",
