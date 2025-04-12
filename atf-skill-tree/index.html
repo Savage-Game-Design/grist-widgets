@@ -154,7 +154,7 @@
 		<div class="skill-tiers" :style="{ gridTemplateColumns: `repeat(${rowSize + 1}, 1fr)` }">
 			<template v-for="row, index in skillRows">
 				<div class="row" :style="{ gridColumn: `1 / span ${rowSize+1}` }">
-					<div class="tier">Tier {{rowSize - index - 1}}</div>
+					<div class="tier">Tier {{skillRows.length - index - 1}}</div>
 					<template v-for="cell in row">
 						<div :class="['cell'].concat(cell?.classes ?? [])" :style="cell?.style">
 							<Skill v-if="cell?.skill" :skill="cell.skill" :show-dep-overlay="cell?.showDependency" @mouseenter="mouseenter(cell, $event)" @mouseleave="mouseexit"></Skill>
