@@ -219,6 +219,7 @@
 				tier: 1,
 				type: "P",
 				tree: "Combat",
+				priority: 100,
 			},
 			{
 				id: 3,
@@ -275,6 +276,7 @@
 				tier: 1,
 				type: "U",
 				tree: "Combat",
+				priority: 50,
 			},
 			{
 				id: 9,
@@ -366,24 +368,6 @@
 			template: document.querySelector('#skill').getHTML()
 		}
 
-		const sortByHorizontalPriority = (skillA, skillB) => {
-			const a = skillA.horizontalPriority;
-			const b = skillB.horizontalPriority;
-			if (a === b) {
-				return 0;
-			}
-			if (a === undefined) {
-				return 1;
-			}
-			if (b === undefined) {
-				return -1;
-			}
-			if (a < b) {
-				return 1;
-			}
-			return -1;
-		}
-
 		const App = createApp({
 			components: {
 				Skill,
@@ -469,7 +453,6 @@
 
 				const sampleBlock = {
 					startRow: 0,
-					endRow: 0,
 					height: 0,
 					width: 0,
 					node: undefined,
@@ -477,153 +460,145 @@
 					column: undefined, // Assigned when allocated to a gap
 				}
 
-				const findGap = (gaps, block) => {
-					let consumedGaps = [];
-					let currentWidth = 0;
-					let consumedGapsStartIndex = 0;
-					for (let i = 0; i < gaps.length; i++) {
-						const gap = gaps[i];
-						// Could be moved into the check below.
-						if (consumedGaps.length === 0) {
-							consumedGapsStartIndex = i;
-						}
-						if ( gap.r <= block.startRow ) {
-							consumedGaps.push(gap)
-							currentWidth += gap.w;
-						} else {
-							consumedGaps = [];
-							currentWidth = 0;
-							continue
-						};
-
-						// If we've found a valid space
-						if ( consumedGaps.length > 0 && block.width <= currentWidth ) {
-							// Pushes new bottom gap that's guaranteed to have formed
-							const newBottomGap = {
-								r: block.startRow + block.height,
-								c: consumedGaps[0].c,
-								w: block.width,
-							}
-							const newGaps = [newBottomGap];
-
-							const leftoverWidth = currentWidth - block.width;
-							if (leftoverWidth > 0) {
-								// It will always be the last gap, since this runs as soon as we have enough space.
-								const lastGap = consumedGaps.slice(-1)[0]
-								const consumedWidth = lastGap.w - leftoverWidth;
-								newGaps.push({
-									r: lastGap.r,
-									c: lastGap.c + consumedWidth,
-									w: leftoverWidth,
-								})
-							}
-
-							gaps.splice(consumedGapsStartIndex, consumedGaps.length, ...newGaps);
-
-							block.column = consumedGaps[0].c;
-							return {
-								gaps,
-								positionedBlock: block,
-							}
-						}
+				// Constraints:
+				// - Cannot overlap
+				// - Column A cannot be undefined
+				const mergeColumns = (columnA, columnB) => {
+					if (!columnB) {
+						return columnA;
 					}
-
-					return undefined
+					// Need to identify the top column. They should always be stacking one way or another, and not need merging at the node level.
+					if (columnB.startRow < columnA.startRow ) {
+						let temp = columnA;
+						columnA = columnB;
+						columnB = temp;
+					}
+					console.log("Merging")
+					console.log(columnA)
+					console.log(columnB)
+					return {
+						startRow: columnA.startRow,
+						height: columnB.startRow + columnB.height - columnA.startRow,
+						nodesInRowOrder: columnA.nodesInRowOrder.concat(columnB.nodesInRowOrder),
+						// Should be fine - we never add a lower priority column to a higher one.
+						priority: Math.max(columnA.priority, columnB.priority),
+					}
 				}
 
-				const layoutBlocks = (blocks) => {
-					if (blocks.length === 1) {
-						const block = blocks[0];
-						block.column = 0;
-						return {
-							width: block.width,
-							height: block.height,
-							positionedBlocks: [block],
-						}
+				const combineColumnLayouts = (columnLayouts) => {
+					if (columnLayouts.length === 0) { return [] }
+					if (columnLayouts.length === 1) {
+						return columnLayouts[0]
 					}
-					// Blocks should be sorted by row
-					blocks.sort((a, b) => a.row - b.row)
-					// Gaps should *always* be sorted by column, to allow for reconciliation.
-					// This occurs naturally when a gap split occurs - as long as it returns the bottom fragment, then the right fragment.
-					let gaps = [{
-						r: 0,
-						c: 0,
-						w: 9999,
+
+					let finalLayout = [];
+					console.log("Final layout")
+					console.log(finalLayout.slice());
+
+					const sortedLayouts = columnLayouts.sort((columnsA, columnsB) => columnsA[0].startRow - columnsB[0].startRow)
+
+					for (const layout of columnLayouts) {
+						// Nasty big loop I'd want to get rid of - the nested loops are too much iteration. There's probably a more optimal way to do this.
+						// Maybe with additional constraints?
+						console.log("Testing layout")
+						console.log(layout)
+
+						// Priority is set by the first node in the layout for simplicity.
+						const layoutPriority = layout[0].priority;
+						let insertionIndex = -1;
+						let extend = false;
+						for (let fColI = 0; fColI < finalLayout.length; fColI++) {
+							if (insertionIndex > -1) {
+								break;
+							}
+							for (let colI = 0; colI < layout.length; colI++) {
+								console.log(`Testing column pair: ${fColI},${colI}`);
+								const fCol = finalLayout[fColI + colI];
+								const col = layout[colI];
+								// Overrun the length of the layout, and all tests passed to this point. We're good to go.
+								// This can only happen if the first column already exists, otherwise we wouldn't be in the loop.
+								// So we're extending.
+								// This means there can't be spaces in the layout with undefined in, otherwise this check breaks.
+								if (fCol === undefined) {
+									insertionIndex = fColI;
+									extend = true;
+									break;
+								}
+								// Priority of the current column is too high, we need to move on to the next column.
+								if (layoutPriority < fCol.priority) {
+									break;
+								}
+								// We've overrun the columns with equal or higher priority without finding a fit.
+								// Need to insert at the end of that.
+								if (fCol.priority < layoutPriority) {
+									insertionIndex = fColI;
+									break;
+								}
+								// Can't insert, the column is too high.
+								if (col.startRow < fCol.startRow + fCol.height) {
+									break;
+								}
+								// We've passed all the tests and reached the final column. WE DID IT.
+								insertionIndex = fColI;
+								extend = true;
+							}
+						}
+						// Didn't find anything valid, we tack the layout on the end.
+						console.log("Adding new layout to final - here's the final beforehand")
+						console.log(finalLayout.slice())
+						if (insertionIndex < 0) {
+							console.log("Appending");
+							finalLayout.push(...layout);
+						} else {
+							// We're putting these columns under an existing set.
+							if (extend) {
+								console.log("Extending");
+								for(let i = 0; i < layout.length; i++) {
+									let fIndex = insertionIndex + i;
+									// Abusing JS's ability to extend an array by assigning beyond its length.
+									finalLayout[fIndex] = mergeColumns(layout[i], finalLayout[fIndex]);
+								}
+							} else {
+								console.log("Inserting")
+								finalLayout.splice(insertionIndex, 0, ...layout);
+							}
+						};
+						console.log("And here's after")
+						console.log(finalLayout.slice())
+					}
+
+					return finalLayout;
+				}
+
+				// Columnular layout - sequential series of columns, where each column has a start row, height and contains nodes.
+				const createColumnularLayoutFromNode = (node) => {
+					const childColumnLayouts = node.dependencies.map(child => createColumnularLayoutFromNode(child));
+					const maxPriority = Math.max(...childColumnLayouts.map(layout => layout[0].priority));
+					const nodeColumnLayout = [{
+						startRow: node.row,
+						height: 1,
+						nodesInRowOrder: [node],
+						priority: Math.max(maxPriority, node.priority ?? 0),
 					}];
 
-					let height = 0;
-					let width = 0; 
-
-					const positionedBlocks = [];
-
-					// TODO - Better gap handling to avoid laddering.
-					// The bottom gap is too narrow to slow in a big block.
-					// Could try an approach where gaps are merged, if the item is too big?
-					// Has come about because of the change to recursive layout rendering.
-					let lastRow = blocks[0].row
-					for (const block of blocks) {
-						// Right now this modifies gaps, so don't need newGaps
-						const findGapResult = findGap(gaps, block);
-						const { gaps: newGaps, positionedBlock } = findGapResult;
-						positionedBlocks.push(positionedBlock);
-						height = Math.max(positionedBlock.startRow + positionedBlock.height, height) 
-						width = Math.max(positionedBlock.column + positionedBlock.width, width) 
-					}
-
-					return {
-						width,
-						height,
-						positionedBlocks,
-					}
+					return combineColumnLayouts([nodeColumnLayout, ...childColumnLayouts])
 				}
 
-				// Recurse after to build grid - more efficient to do it in one pass
-				const createBlockLayoutFromNode = (node, parentNode = { row: 0 }) => {
-					const startRow = node.row - parentNode.row;
-					const childBlocks = node.dependencies.map(child => createBlockLayoutFromNode(child, node));
-					const nodeBlock = {
-						startRow: 0,
-						endRow: 0,
-						height: 1,
-						width: 1,
-						node,
-						blocks: [],
-					}
-
-					const layout = layoutBlocks([nodeBlock, ...childBlocks])
-
-					return {
-						// First row index where this block has a node
-						startRow,
-						// Final index where this block has a node
-						endRow: startRow + layout.height - 1,
-						height: layout.height,
-						width: layout.width,
-						blocks: layout.positionedBlocks,
-					}
-				}
-
-				function addPositionedBlockToRows(block, rows, offset = { row: 0, column: 0 }) {
-					const row = offset.row + block.startRow;
-					const column = offset.column + block.column;
-					if (block.node) {
-						rows[row][column] = block.node
-					}
-					for (let childBlock of block.blocks) {
-						addPositionedBlockToRows(childBlock, rows, { row, column })
-					}
-				}
-
-				function layoutToRows(layout) {
+				function layoutToRows(columns) {
+					const layoutHeight = Math.max(...columns.map(column => column.startRow + column.height))
+					console.log(layoutHeight);
 					const rows = [];
 
-					for (let i = 0; i < layout.height; i++) {
+					for (let i = 0; i < layoutHeight; i++) {
 						rows[i] = [];
 					}
 
-					for (let block of layout.positionedBlocks) {
-						addPositionedBlockToRows(block, rows);
-					}
+					columns.forEach((column, columnIndex) => {
+						for (let node of column.nodesInRowOrder) {
+							console.log(node);
+							rows[node.row][columnIndex] = node
+						}
+					});
 
 					return rows;
 				}
@@ -639,19 +614,24 @@
 
 					const rootNodes = nodes.filter(node => !dependentNodes.includes(node));
 
-					rootNodes.sort((a, b) => a.row - b.row)
+					const columnLayouts = rootNodes.map(rootNode => {
+						console.log(`Layout for ${rootNode.skill.title}`);
+						const l = createColumnularLayoutFromNode(rootNode)
+						console.log(l);
+						return l;
+					});
 
-					const blocks = rootNodes.map(rootNode => createBlockLayoutFromNode(rootNode));
 
-					const layout = layoutBlocks(blocks);
+					const layout = combineColumnLayouts(columnLayouts);
 					console.log("Full layout");
 					console.log(layout);
 					const rows = layoutToRows(layout);
 
+					const maxRowLength = Math.max(...rows.map(row => row.length))
 					for (const row of rows) {
-						if (row.length < layout.width) {
+						if (row.length < maxRowLength) {
 							// Extend the row to match the others
-							row[layout.width - 1] = undefined
+							row[maxRowLength - 1] = undefined
 						}
 					}
 
@@ -697,8 +677,9 @@
 						row: highestTier.value - skill.tier,
 						// Extra details for this node
 						skill,
+						priority: skill.priority,
 					}));
-
+					
 					for (const node of nodes) {
 						node.dependencies = node.skill.dependencyIds.map(skillId => nodes.find(nodeToCheck => nodeToCheck.skill.id === skillId))
 					}
