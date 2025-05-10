@@ -117,11 +117,19 @@
 			height: 100%;
 		}
 
+		.skill .bottom-row {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+		}
+
 		.skill .description {
 			flex-grow: 1;
 		}
 
 		.skill .cost {
+			flex-grow: 1;
+			flex-shrink: 1;
 			font-size: 1.3em;
 			justify-self: end;
 		}
@@ -138,7 +146,19 @@
 		<div class="items">
 			<p class="title">{{ skill.title || "" }}</p>
 			<p class="description">{{ skill.description }}</p>
-			<p class="cost">{{ skill.cost }} SP</p>
+			<div class="bottom-row">
+				<p v-if="skill.duration" class="duration">
+<!--					&#9203<br/>-->
+					<em>Duration</em><br/>
+					{{ skill.duration }}
+				</p>
+				<p class="cost">{{ skill.cost }} SP</p>
+				<p v-if="skill.cooldown" class="cooldown">
+<!--					&#8987<br/>-->
+					<em>Cooldown</em><br/>
+					{{ skill.cooldown }}
+				</p>
+			</div>
 		</div>
 		<div class="dependencyOverlay flexCenter" v-show="showDepOverlay">
 			<div>Dependency</div>
@@ -198,6 +218,18 @@
 				type: "Text",
 			},
 			{
+				name: "duration",
+				title: "Duration",
+				optional: true,
+				type: "Numeric",
+			},
+			{
+				name: "cooldown",
+				title: "Cooldown",
+				optional: true,
+				type: "Numeric",
+			},
+			{
 				name: "tree",
 				title: "Skill tree",
 				optional: true,
@@ -214,7 +246,7 @@
 				title: "Dependencies",
 				optional: true,
 				type: "Reference"
-			}	
+			}
 		]});
 
 
@@ -266,6 +298,9 @@
 				tier: 3,
 				type: "U",
 				tree: "Combat",
+				cooldown: 360,
+				duration: 30,
+
 			},
 			{
 				id: 6,
