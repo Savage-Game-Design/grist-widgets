@@ -150,13 +150,13 @@
 				<p v-if="skill.duration" class="duration">
 <!--					&#9203<br/>-->
 					<em>Duration</em><br/>
-					{{ skill.duration }}
+					{{ asTime(skill.duration) }}
 				</p>
 				<p class="cost">{{ skill.cost }} SP</p>
 				<p v-if="skill.cooldown" class="cooldown">
 <!--					&#8987<br/>-->
 					<em>Cooldown</em><br/>
-					{{ skill.cooldown }}
+					{{ asTime(skill.cooldown) }}
 				</p>
 			</div>
 		</div>
@@ -413,8 +413,18 @@
 					return classValues
 				})
 
+				const asTime = (value) => {
+					const mins = Math.floor(value / 60);
+					const secs = value - (mins * 60);
+					const minsFormatted = mins > 0 ? `${mins}m` : "";
+					const space = mins > 0? " " : ""
+					const secsFormatted = `${secs}s`;
+					return `${minsFormatted}${space}${secsFormatted}`
+				}
+
 				return {
 					classes,
+					asTime,
 				}
 			},
 			template: document.querySelector('#skill').getHTML()
